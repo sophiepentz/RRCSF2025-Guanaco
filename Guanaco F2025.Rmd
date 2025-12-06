@@ -2,7 +2,7 @@
 title: "Guanaco F2025"
 author: "Sophie Pentz"
 date: "2025-11-16"
-output: html_document
+output: output: word_document
 ---
 
 ```{r}
