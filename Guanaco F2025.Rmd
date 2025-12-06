@@ -1,0 +1,129 @@
+---
+title: "Guanaco F2025"
+author: "Sophie Pentz"
+date: "2025-11-16"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(janitor)
+library(readxl)
+```
+
+```{r}
+guanaco <- read_excel(
+  "2025.12.04_Guanaco_Master_Sheet.xlsx",
+  col_types = c(
+    rep("guess", 10),  # first 10 columns
+    "text",            # column 11 (date/time column)
+    rep("guess", 18)   # remaining columns
+  )
+)
+```
+
+```{r}
+guanaco_clean <- guanaco %>%
+  mutate(
+    Year = as.numeric(Year),
+    km = as.numeric(`2024 Total Transect Length`)
+  ) %>%
+  filter(!is.na(Year)) %>%
+  filter(!Year %in% c(2026, 2027))
+
+# SUMMARIZE FOR BARS: counts by year + season
+guanaco_counts <- guanaco_clean %>%
+  group_by(Year, `Chilean Seasson`) %>%
+  summarise(total_count = sum(`TOTAL COUNT`, na.rm = TRUE), .groups = "drop") %>%
+  complete(
+    Year,
+    `Chilean Seasson`,
+    fill = list(total_count = 0)
+  )
+
+# SUMMARIZE FOR LINE: km per year
+guanaco_km <- guanaco_clean %>%
+  group_by(Year) %>%
+  summarise(total_km = sum(km, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+scale_factor <- max(guanaco_counts$total_count) / max(guanaco_km$total_km)
+```
+
+
+```{r}
+ggplot() +
+  
+  # BAR GRAPH
+  geom_col(
+    data = guanaco_counts,
+    aes(x = factor(Year), y = total_count, fill = `Chilean Seasson`),
+    position = position_dodge(width = 0.7),
+    width = 0.55
+  ) +
+
+  # TEXT LABELS ON TOP OF BARS
+  geom_text(
+    data = guanaco_counts,
+    aes(
+      x = factor(Year),
+      y = total_count,
+      label = total_count,
+      group = `Chilean Seasson`
+    ),
+    position = position_dodge(width = 0.7),
+    vjust = -0.5,
+    size = 3
+  ) +
+
+  # KM LINE (scaled)
+  geom_line(
+    data = guanaco_km,
+    aes(x = factor(Year), y = total_km * scale_factor, group = 1),
+    color = "black",
+    linetype = "dotted",
+    linewidth = 1
+  ) +
+  geom_point(
+    data = guanaco_km,
+    aes(x = factor(Year), y = total_km * scale_factor),
+    color = "black",
+    size = 2
+  ) +
+
+  scale_y_continuous(
+    name = "Total Guanaco Count",
+    sec.axis = sec_axis(~ . / scale_factor, name = "Total Kilometers Tracked")
+  ) +
+  labs(
+    title = "Guanaco Count by Year and Season + Total Kilometers Tracked",
+    x = "Year",
+    fill = "Chilean Season"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
