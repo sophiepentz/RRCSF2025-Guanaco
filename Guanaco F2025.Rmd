@@ -13,15 +13,16 @@ library(tidyr)
 library(janitor)
 library(readxl)
 library(scales)
+library(ggrepel)
 ```
 
 ```{r}
 guanaco <- read_excel(
-  "2025.12.04_Guanaco_Master_Sheet.xlsx",
+  "2025.12.06_Guanaco_Master_Sheet.xlsx",
   col_types = c(
     rep("guess", 10),  # first 10 columns
     "text",            # column 11 (date/time column)
-    rep("guess", 18)   # remaining columns
+    rep("guess", 19)   # remaining columns
   )
 )
 ```
@@ -184,23 +185,128 @@ ggplot(age_year_summary,
   theme_minimal(base_size = 13)
 ```
 
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+habitat_summary <- guanaco_clean |>
+  filter(
+    `Animal spp` == "Guanaco",
+    !is.na(`Habitat Type`),
+    `Habitat Type` != "Unknown"
+  ) |>
+  group_by(`Habitat Type`) |>
+  summarise(total_count = n(), .groups = "drop")
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+habitat_summary <- guanaco_clean |>
+  filter(
+    `Animal spp` == "Guanaco",
+    !is.na(`Habitat Type`),
+    !(`Habitat Type` %in% c("Unknown", "-", ""))
+  ) |>
+  group_by(`Habitat Type`) |>
+  summarise(total_count = n(), .groups = "drop") |>
+  filter(total_count > 0) |>
+  mutate(
+    pct = total_count / sum(total_count),
+    label = scales::percent(pct, accuracy = 1)
+  )
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+ggplot(habitat_summary,
+       aes(x = "", y = total_count, fill = `Habitat Type`)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  geom_text_repel(
+    aes(label = label),
+    position = position_stack(vjust = 0.5),
+    show.legend = FALSE,
+    size = 4
+  ) +
+  labs(
+    title = "Guanaco Observations by Habitat Type",
+    fill = "Habitat Type"
+  ) +
+  theme_void()
+```
+
+```{r}
+habitat_year <- guanaco_clean |>
+  filter(
+    `Animal spp` == "Guanaco",
+    !is.na(`Habitat Type`),
+    !(`Habitat Type` %in% c("Unknown", "-", ""))
+  ) |>
+  group_by(Year, `Habitat Type`) |>
+  summarise(total_count = n(), .groups = "drop")
+```
+
+```{r}
+habitat_year_prop <- habitat_year |>
+  group_by(Year) |>
+  mutate(
+    pct = total_count / sum(total_count)
+  ) |>
+  ungroup()
+```
+
+```{r}
+ggplot(habitat_year_prop,
+       aes(x = factor(Year), y = pct, fill = `Habitat Type`)) +
+  geom_col(width = 0.9) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(
+    title = "Proportional Habitat Use of Guanaco by Year",
+    x = "Year",
+    y = "Percentage of Observations",
+    fill = "Habitat Type"
+  ) + theme(
+  axis.text.x = element_text(angle = 45, hjust = 1)
+)
+```
+
+```{r}
+habitat_use <- guanaco_clean |>
+  filter(`Animal spp` == "Guanaco") |>
+  filter(
+    !is.na(`Habitat Type`),
+    !(`Habitat Type` %in% c("-", "Unknown"))
+  ) |>
+  group_by(`Habitat Type`) |>
+  summarise(
+    use = sum(`TOTAL COUNT`, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    rel_use = use / sum(use, na.rm = TRUE)
+  )
+
+```
+
+```{r}
+habitat_use_clean <- habitat_use |>
+  filter(
+    !is.na(rel_use),
+    rel_use > 0,
+    !is.na(`Habitat Type`)
+  )
+
+habitat_use_clean <- habitat_use_clean |>
+  arrange(desc(rel_use)) |>
+  mutate(`Habitat Type` = factor(`Habitat Type`, levels = `Habitat Type`))
+
+ggplot(habitat_use_clean,
+       aes(x = `Habitat Type`, y = rel_use, fill = `Habitat Type`)) +
+  geom_col(show.legend = FALSE) +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
+  labs(
+    title = "Relative Habitat Use by Guanaco",
+    x = "Habitat Type",
+    y = "Relative Use (%)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
