@@ -29,28 +29,55 @@ guanaco <- read_excel(
 
 ```{r}
 guanaco_clean <- guanaco %>%
+  filter(
+    !is.na(`Animal spp`),         
+    !is.na(`Chilean Seasson`)
+  ) %>%
   mutate(
     Year = as.numeric(Year),
-    km = as.numeric(`2024 Total Transect Length`)
+    km = as.numeric(`2024 Total Transect Length`),
+    animal_group = if_else(`Animal spp` == "Guanaco",
+                           "Guanaco",
+                           "Other animals")
   ) %>%
-  filter(!is.na(Year)) %>%
-  filter(!Year %in% c(2026, 2027))
-
-# SUMMARIZE FOR BARS: counts by year + season
-guanaco_counts <- guanaco_clean %>%
-  group_by(Year, `Chilean Seasson`) %>%
-  summarise(total_count = sum(`TOTAL COUNT`, na.rm = TRUE), .groups = "drop") %>%
-  complete(
-    Year,
-    `Chilean Seasson`,
-    fill = list(total_count = 0)
+  filter(
+    !is.na(Year),
+    !Year %in% c(2026, 2027)
   )
+```
 
+```{r}
+# SUMMARIZE FOR BARS: counts by year + season
+guanaco_clean <- guanaco_clean %>%
+  filter(!is.na(`Animal spp`)) %>%     
+  mutate(
+    animal_group = if_else(`Animal spp` == "Guanaco",
+                           "Guanaco",
+                           "Ganado")
+  )
+```
+
+```{r}
 # SUMMARIZE FOR LINE: km per year
 guanaco_km <- guanaco_clean %>%
   group_by(Year) %>%
   summarise(total_km = sum(km, na.rm = TRUE), .groups = "drop")
+
+guanaco_counts <- guanaco_clean %>%
+  group_by(Year, `Chilean Seasson`, animal_group) %>%
+  summarise(
+    total_count = sum(`TOTAL COUNT`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  complete(
+    Year,
+    `Chilean Seasson`,
+    animal_group,
+    fill = list(total_count = 0)
+  ) %>%
+  filter(!is.na(animal_group)) 
 ```
+
 
 ```{r}
 scale_factor <- max(guanaco_counts$total_count) / max(guanaco_km$total_km)
@@ -58,29 +85,33 @@ scale_factor <- max(guanaco_counts$total_count) / max(guanaco_km$total_km)
 
 
 ```{r}
-ggplot() +
+pop_plot <- ggplot() +
   
   # BAR GRAPH
   geom_col(
-    data = guanaco_counts,
-    aes(x = factor(Year), y = total_count, fill = `Chilean Seasson`),
-    position = position_dodge(width = 0.7),
-    width = 0.55
-  ) +
+  data = guanaco_counts,
+  aes(
+    x = factor(Year),
+    y = total_count,
+    fill = `Chilean Seasson`
+  ),
+  position = position_dodge(width = 0.7),
+  width = 0.55
+) +
 
   # TEXT LABELS ON TOP OF BARS
-  geom_text(
-    data = guanaco_counts,
-    aes(
-      x = factor(Year),
-      y = total_count,
-      label = total_count,
-      group = `Chilean Seasson`
-    ),
-    position = position_dodge(width = 0.7),
-    vjust = -0.5,
-    size = 3
-  ) +
+ geom_text(
+  data = guanaco_counts %>% filter(total_count > 0),
+  aes(
+    x = factor(Year),
+    y = total_count,
+    label = total_count,
+    group = `Chilean Seasson`
+  ),
+  position = position_dodge(width = 0.7),
+  vjust = -0.5,
+  size = 3
+) +
 
   # KM LINE (scaled)
   geom_line(
@@ -101,13 +132,24 @@ ggplot() +
     name = "Total Guanaco Count",
     sec.axis = sec_axis(~ . / scale_factor, name = "Total Kilometers Tracked")
   ) +
+  facet_wrap(~ animal_group, ncol = 1, scales = "free_y") +
   labs(
     title = "Guanaco Count by Year and Season + Total Kilometers Tracked",
     x = "Year",
     fill = "Chilean Season"
   ) +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        panel.spacing = unit(1.2, "lines"),
+        plot.margin = margin(10, 10, 10, 10))
+
+ggsave(
+  "guanaco_plot.png",
+  plot = pop_plot,
+  width = 12,    
+  height = 9,    
+  dpi = 300
+)
 ```
 
 ```{r}
