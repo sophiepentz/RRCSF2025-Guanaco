@@ -12,6 +12,7 @@ library(lubridate)
 library(tidyr)
 library(janitor)
 library(readxl)
+library(scales)
 ```
 
 ```{r}
@@ -107,6 +108,82 @@ ggplot() +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+```{r}
+guanaco_age <- guanaco_clean |>
+  filter(`Animal spp` == "Guanaco") |>
+  select(
+    Year,
+    `Chilean Seasson`,
+    Adult_M,
+    Adult_F,
+    Adult_unk,
+    Subadult_M,
+    Subadult_F,
+    `Juvenile(Chulengo)`,
+    Undetermined_individuals
+  )
+```
+
+```{r}
+guanaco_age_long <- guanaco_age |>
+  pivot_longer(
+    cols = c(
+      Adult_M,
+      Adult_F,
+      Adult_unk,
+      Subadult_M,
+      Subadult_F,
+      `Juvenile(Chulengo)`,
+      Undetermined_individuals
+    ),
+    names_to = "raw_class",
+    values_to = "count"
+  ) |>
+  filter(!is.na(count), count > 0) |>
+  mutate(
+    age_class = case_when(
+      raw_class %in% c("Adult_M", "Adult_F", "Adult_unk") ~ "Adult",
+      raw_class %in% c("Subadult_M", "Subadult_F") ~ "Subadult",
+      raw_class == "Juvenile(Chulengo)" ~ "Chulengo",
+      raw_class == "Undetermined_individuals" ~ "Undetermined"
+    )
+  )
+
+age_summary <- guanaco_age_long |>
+  group_by(age_class) |>
+  summarise(total_count = sum(count), .groups = "drop")
+```
+
+```{r}
+age_year_summary <- guanaco_age_long |>
+  group_by(Year, age_class) |>
+  summarise(
+    total_count = sum(count),
+    .groups = "drop"
+  )
+
+age_year_summary$age_class <- factor(
+  age_year_summary$age_class,
+  levels = c("Chulengo", "Subadult", "Adult", "Undetermined")
+)
+```
+
+
+```{r}
+ggplot(age_year_summary,
+       aes(x = factor(Year), y = total_count, fill = age_class)) +
+  geom_col(position = "fill") +
+  scale_y_continuous(labels = percent_format()) +
+  labs(
+    title = "Proportional Guanaco Age-Class Structure by Year",
+    x = "Year",
+    y = "Proportion of Total Population",
+    fill = "Age Class"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
 
 ## R Markdown
 
