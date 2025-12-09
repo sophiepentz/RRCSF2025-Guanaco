@@ -14,6 +14,8 @@ library(janitor)
 library(readxl)
 library(scales)
 library(ggrepel)
+library(forcats)
+library(stringr)
 ```
 
 ```{r}
@@ -38,7 +40,7 @@ guanaco_clean <- guanaco %>%
     km = as.numeric(`2024 Total Transect Length`),
     animal_group = if_else(`Animal spp` == "Guanaco",
                            "Guanaco",
-                           "Other animals")
+                           "Livestock")
   ) %>%
   filter(
     !is.na(Year),
@@ -53,7 +55,7 @@ guanaco_clean <- guanaco_clean %>%
   mutate(
     animal_group = if_else(`Animal spp` == "Guanaco",
                            "Guanaco",
-                           "Ganado")
+                           "Livestock")
   )
 ```
 
@@ -81,6 +83,22 @@ guanaco_counts <- guanaco_clean %>%
 
 ```{r}
 scale_factor <- max(guanaco_counts$total_count) / max(guanaco_km$total_km)
+```
+
+```{r}
+guanaco_counts <- guanaco_counts %>%
+  mutate(
+    `Chilean Seasson` = fct_relevel(
+      str_trim(str_to_title(`Chilean Seasson`)),
+      "Summer",
+      "Spring"
+    ),
+    animal_group = fct_relevel(
+      animal_group,
+      "Livestock",
+      "Guanaco"
+    )
+  )
 ```
 
 
@@ -141,10 +159,11 @@ pop_plot <- ggplot() +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), 
         panel.spacing = unit(1.2, "lines"),
-        plot.margin = margin(10, 10, 10, 10))
-
+        plot.margin = margin(10, 10, 10, 10), 
+        panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())
 ggsave(
-  "guanaco_plot.png",
+  filename = "guanaco_plot.png",
   plot = pop_plot,
   width = 12,    
   height = 9,    
@@ -214,7 +233,7 @@ age_year_summary$age_class <- factor(
 
 
 ```{r}
-ggplot(age_year_summary,
+age_plot <- ggplot(age_year_summary,
        aes(x = factor(Year), y = total_count, fill = age_class)) +
   geom_col(position = "fill") +
   scale_y_continuous(labels = percent_format()) +
@@ -225,6 +244,14 @@ ggplot(age_year_summary,
     fill = "Age Class"
   ) +
   theme_minimal(base_size = 13)
+
+ggsave(
+  filename = "age_plot.png",
+  plot = age_plot,
+  width = 12,    
+  height = 9,    
+  dpi = 300
+)
 ```
 
 ```{r}
@@ -255,7 +282,7 @@ habitat_summary <- guanaco_clean |>
 ```
 
 ```{r}
-ggplot(habitat_summary,
+pie_chart <- ggplot(habitat_summary,
        aes(x = "", y = total_count, fill = `Habitat Type`)) +
   geom_col(width = 1, color = "white") +
   coord_polar(theta = "y") +
@@ -270,6 +297,14 @@ ggplot(habitat_summary,
     fill = "Habitat Type"
   ) +
   theme_void()
+
+ggsave(
+  filename = "pie_chart.png",
+  plot = pie_chart,
+  width = 12,    
+  height = 9,    
+  dpi = 300
+)
 ```
 
 ```{r}
@@ -293,7 +328,7 @@ habitat_year_prop <- habitat_year |>
 ```
 
 ```{r}
-ggplot(habitat_year_prop,
+habitat_graph <- ggplot(habitat_year_prop,
        aes(x = factor(Year), y = pct, fill = `Habitat Type`)) +
   geom_col(width = 0.9) +
   scale_y_continuous(labels = percent_format()) +
@@ -304,6 +339,14 @@ ggplot(habitat_year_prop,
     fill = "Habitat Type"
   ) + theme(
   axis.text.x = element_text(angle = 45, hjust = 1)
+)
+
+ggsave(
+  filename = "habitat_graph.png",
+  plot = habitat_graph,
+  width = 12,    
+  height = 9,    
+  dpi = 300
 )
 ```
 
@@ -337,7 +380,7 @@ habitat_use_clean <- habitat_use_clean |>
   arrange(desc(rel_use)) |>
   mutate(`Habitat Type` = factor(`Habitat Type`, levels = `Habitat Type`))
 
-ggplot(habitat_use_clean,
+relativeuse_graph <- ggplot(habitat_use_clean,
        aes(x = `Habitat Type`, y = rel_use, fill = `Habitat Type`)) +
   geom_col(show.legend = FALSE) +
   scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
@@ -348,7 +391,16 @@ ggplot(habitat_use_clean,
   ) +
   theme_minimal(base_size = 13) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1)
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
   )
 
+ggsave(
+  filename = "relativeuse_graph.png",
+  plot = relativeuse_graph,
+  width = 12,    
+  height = 9,    
+  dpi = 300
+)
 ```
